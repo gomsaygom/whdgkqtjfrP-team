@@ -16,11 +16,24 @@
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
-      ]
+        "WRITE_EXTERNAL_STORAGE",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.gomsaygom.equipmentrental"
     },
     "plugins": [
-      ["expo-camera", { "cameraPermission": "QR 스캔을 위해 카메라 접근이 필요합니다." }]
-    ]
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "QR 스캔을 위해 카메라 접근이 필요합니다."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "02a109ce-8e54-4a16-9aad-16d3cd4012f3"
+      }
+    }
   }
 }
