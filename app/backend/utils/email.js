@@ -2,19 +2,19 @@
 const nodemailer = require('nodemailer');
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false,
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS, // Gmail 앱 비밀번호
+    pass: process.env.EMAIL_PASS,
   },
 });
 
-// 인증번호 생성 (6자리)
 function generateCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
-// 인증번호 이메일 발송
 async function sendVerificationEmail(to, code) {
   await transporter.sendMail({
     from: `"기자재 대여 관리" <${process.env.EMAIL_USER}>`,
