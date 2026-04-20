@@ -1,23 +1,14 @@
 // utils/email.js
-const nodemailer = require('nodemailer');
-
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 587,
-  secure: false,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+const sgMail = require('@sendgrid/mail');
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 function generateCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
 }
 
 async function sendVerificationEmail(to, code) {
-  await transporter.sendMail({
-    from: `"기자재 대여 관리" <${process.env.EMAIL_USER}>`,
+  await sgMail.send({
+    from: process.env.EMAIL_USER,
     to,
     subject: '[기자재 대여] 이메일 인증번호',
     html: `
