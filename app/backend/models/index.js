@@ -30,6 +30,7 @@ const adminSchema = new mongoose.Schema({
   password:   { type: String, required: true },
   department: String,
   level:      { type: String, enum: ['SUPER', 'STAFF'], default: 'STAFF' },
+  fcmToken:   String,
 }, { timestamps: true });
 
 adminSchema.pre('save', async function () {

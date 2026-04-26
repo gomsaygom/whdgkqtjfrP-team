@@ -193,6 +193,13 @@ rentRouter.put('/:id/extend', protect, async (req, res) => {
     rental.extendRequested  = true;
     rental.extendNewDueDate = newDueDate;
     await rental.save();
+
+    // 모든 관리자에게 알림
+    const admins = await Admin.find({ fcmToken: { $exists: true, $ne: null } });
+    for (const admin of admins) {
+      await sendPushToUser(admin, '연장 신청 접수', `${rental.user?.name || '사용자'}님이 반납 연장을 신청했습니다.`);
+    }
+
     res.json({ message: '연장 신청이 접수됐습니다. 관리자 승인 후 확정됩니다.' });
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
