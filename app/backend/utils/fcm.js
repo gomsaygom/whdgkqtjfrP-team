@@ -3,7 +3,11 @@ const admin = require('firebase-admin');
 let messaging = null;
 
 try {
-  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+  const raw = process.env.FIREBASE_SERVICE_ACCOUNT;
+  const serviceAccount = JSON.parse(raw);
+  // private_key 줄바꿈 복원
+  serviceAccount.private_key = serviceAccount.private_key.replace(/\\n/g, '\n');
+  
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
   });
