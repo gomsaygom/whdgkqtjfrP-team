@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authAPI } from '../api';
+import { registerForPushNotifications } from '../../notifications';
 
 const AuthContext = createContext(null);
 
@@ -23,10 +24,23 @@ export function AuthProvider({ children }) {
     })();
   }, []);
 
+  const registerFCM = async () => {
+    try {
+      const fcmToken = await registerForPushNotifications();
+      if (fcmToken) {
+        await authAPI.updateFCMToken(fcmToken);
+        console.log('[FCM] 토큰 서버 저장 완료:', fcmToken);
+      }
+    } catch (e) {
+      console.log('[FCM] 토큰 등록 실패:', e.message);
+    }
+  };
+
   const login = async (studentId, password) => {
     const res = await authAPI.login({ studentId, password });
     await AsyncStorage.setItem('token', res.data.token);
     setUser(res.data.user);
+    await registerFCM();
     return res.data.user;
   };
 
