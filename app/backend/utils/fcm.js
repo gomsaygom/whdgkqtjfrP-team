@@ -1,10 +1,9 @@
 const admin = require('firebase-admin');
-const path  = require('path');
 
 let messaging = null;
 
 try {
-  const serviceAccount = require(path.join(__dirname, '../firebase-service-account.json'));
+  const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
   });
@@ -14,7 +13,6 @@ try {
   console.log('[FCM] Firebase 초기화 실패:', e.message);
 }
 
-// 단일 기기에 알림 발송
 async function sendNotification(fcmToken, title, body, data = {}) {
   if (!messaging || !fcmToken) return false;
   try {
@@ -33,7 +31,6 @@ async function sendNotification(fcmToken, title, body, data = {}) {
   }
 }
 
-// 여러 기기에 알림 발송
 async function sendMulticast(fcmTokens, title, body, data = {}) {
   if (!messaging || !fcmTokens?.length) return;
   try {
