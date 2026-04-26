@@ -7,12 +7,14 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": false,
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "NSCameraUsageDescription": "QR 스캔 및 반납 사진 촬영을 위해 카메라 접근이 필요합니다.",
         "NSPhotoLibraryUsageDescription": "사진 첨부를 위해 갤러리 접근이 필요합니다."
       }
     },
     "android": {
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "CAMERA",
         "READ_EXTERNAL_STORAGE",
