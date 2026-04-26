@@ -44,7 +44,7 @@ export async function registerForPushNotifications() {
   }
 
   // Expo Push Token 발급
-  const token = (await Notifications.getExpoPushTokenAsync()).data;
+  const token = (await Notifications.getDevicePushTokenAsync()).data;
   console.log('[알림] Expo Push Token:', token);
   return token;
 }
