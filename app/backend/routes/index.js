@@ -6,10 +6,16 @@ const path    = require('path');
 
 const { User, Admin, Category, Equipment, Rental, Penalty, StatusHistory, DamageReport } = require('../models');
 const { protect, adminOnly } = require('../middleware/auth');
-const { sendPushToUser }     = require('../utils/fcm');
+const { sendNotification }   = require('../utils/fcm');
 
 const sign = (id, role) =>
   jwt.sign({ id, role }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' });
+
+// sendPushToUser 헬퍼
+async function sendPushToUser(user, title, body, data = {}) {
+  if (!user?.fcmToken) return;
+  await sendNotification(user.fcmToken, title, body, data);
+}
 
 // 파일 업로드 설정
 const storage = multer.diskStorage({
@@ -285,7 +291,6 @@ reportRouter.post('/damage', protect, upload.single('photo'), async (req, res) =
       equipment: equipmentId, user: req.user._id, rental: rentalId,
       description, photoUrl: req.file ? `/uploads/${req.file.filename}` : '',
     });
-    // 관리자에게 알림 (현재는 콘솔, 추후 FCM)
     console.log(`[신고] ${req.user.name} - 기자재 ID: ${equipmentId}`);
     res.status(201).json(report);
   } catch (e) { res.status(500).json({ message: e.message }); }
