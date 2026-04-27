@@ -26,10 +26,12 @@ export function AuthProvider({ children }) {
 
   const registerFCM = async () => {
     try {
+      console.log('[FCM] 토큰 등록 시작');
       const fcmToken = await registerForPushNotifications();
+      console.log('[FCM] 받은 토큰:', fcmToken);
       if (fcmToken) {
         await authAPI.updateFCMToken(fcmToken);
-        console.log('[FCM] 토큰 서버 저장 완료:', fcmToken);
+        console.log('[FCM] 토큰 서버 저장 완료');
       }
     } catch (e) {
       console.log('[FCM] 토큰 등록 실패:', e.message);
