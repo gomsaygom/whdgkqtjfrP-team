@@ -1,5 +1,8 @@
-import { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, Alert, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { useState, useCallback } from 'react';
+import {
+  View, Text, ScrollView, StyleSheet, TouchableOpacity,
+  RefreshControl, Alert, Modal, TextInput, KeyboardAvoidingView, Platform,
+} from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { adminAPI, rentalAPI } from '../../api';
 import { COLORS } from '../../theme';
@@ -9,10 +12,10 @@ import { useAuth } from '../../context/AuthContext';
 export default function AdminDashboard() {
   const navigation = useNavigation();
   const { logout, user } = useAuth();
-  const [stats, setStats]     = useState(null);
-  const [overdue, setOverdue] = useState([]);
-  const [today, setToday]     = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats]         = useState(null);
+  const [overdue, setOverdue]     = useState([]);
+  const [today, setToday]         = useState([]);
+  const [loading, setLoading]     = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   // 강제반납 모달
@@ -34,13 +37,16 @@ export default function AdminDashboard() {
     } catch { } finally { setLoading(false); setRefreshing(false); }
   }, []);
 
-  useEffect(() => { load(); }, []);
+  // 화면 진입할 때마다 자동 갱신
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      load();
+    }, [load])
+  );
 
-  // 화면 포커스될 때마다 자동 갱신
-  useFocusEffect(useCallback(() => { load(); }, [load]));
-
-  const openForceModal = (item) => {
-    setForceTarget(item);
+  const openForceModal = (rental) => {
+    setForceTarget(rental);
     setForceReason('');
     setForceModal(true);
   };
@@ -74,12 +80,14 @@ export default function AdminDashboard() {
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.grayLight }}>
+      {/* 헤더 */}
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>관리자 대시보드</Text>
           <Text style={styles.headerSub}>{user?.name} 관리자</Text>
         </View>
-        <TouchableOpacity onPress={() => Alert.alert('로그아웃', '로그아웃 하시겠습니까?', [{ text: '취소' }, { text: '확인', onPress: logout }])}
+        <TouchableOpacity
+          onPress={() => Alert.alert('로그아웃', '로그아웃 하시겠습니까?', [{ text: '취소' }, { text: '확인', onPress: logout }])}
           style={styles.logoutBtn}>
           <Text style={{ color: COLORS.white, fontSize: 13 }}>로그아웃</Text>
         </TouchableOpacity>
@@ -89,6 +97,7 @@ export default function AdminDashboard() {
         contentContainerStyle={{ padding: 16 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={COLORS.primary} />}
       >
+        {/* 통계 카드 */}
         <View style={styles.statGrid}>
           {statCards.map((c) => (
             <View key={c.label} style={styles.statCard}>
@@ -98,6 +107,7 @@ export default function AdminDashboard() {
           ))}
         </View>
 
+        {/* 오늘 반납 예정 */}
         <Text style={styles.sectionTitle}>오늘 반납 예정 ({today.length}건)</Text>
         {today.length === 0
           ? <Text style={styles.emptyText}>없음</Text>
@@ -116,6 +126,7 @@ export default function AdminDashboard() {
           ))
         }
 
+        {/* 연체 목록 */}
         <Text style={[styles.sectionTitle, { marginTop: 8 }]}>연체 목록 ({overdue.length}건)</Text>
         {overdue.length === 0
           ? <Text style={styles.emptyText}>연체 없음 ✅</Text>
@@ -141,6 +152,7 @@ export default function AdminDashboard() {
           })
         }
 
+        {/* 빠른 메뉴 */}
         <Text style={[styles.sectionTitle, { marginTop: 8 }]}>바로가기</Text>
         <View style={styles.menuGrid}>
           {[
@@ -174,7 +186,11 @@ export default function AdminDashboard() {
               autoFocus
             />
             <View style={styles.forceBtnRow}>
-              <OutlineButton title="취소" onPress={() => setForceModal(false)} style={{ flex: 1, marginRight: 8 }} />
+              <OutlineButton
+                title="취소"
+                onPress={() => setForceModal(false)}
+                style={{ flex: 1, marginRight: 8 }}
+              />
               <Button
                 title={forceLoading ? '처리 중...' : '강제 반납'}
                 onPress={handleForceReturn}
