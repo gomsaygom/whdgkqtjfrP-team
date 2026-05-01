@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, Alert } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { View, Text, ScrollView, StyleSheet, TouchableOpacity, RefreshControl, Alert, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { adminAPI, rentalAPI } from '../../api';
 import { COLORS } from '../../theme';
-import { Card, Loading } from '../../components/UI';
+import { Card, Loading, Button, OutlineButton } from '../../components/UI';
 import { useAuth } from '../../context/AuthContext';
 
 export default function AdminDashboard() {
@@ -14,6 +14,12 @@ export default function AdminDashboard() {
   const [today, setToday]     = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // 강제반납 모달
+  const [forceModal, setForceModal]     = useState(false);
+  const [forceTarget, setForceTarget]   = useState(null);
+  const [forceReason, setForceReason]   = useState('');
+  const [forceLoading, setForceLoading] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -30,22 +36,31 @@ export default function AdminDashboard() {
 
   useEffect(() => { load(); }, []);
 
-  const handleForceReturn = (rentalId, equipName) => {
-    Alert.prompt(
-      '강제 반납',
-      `"${equipName}" 강제 반납 사유를 입력하세요.`,
-      async (reason) => {
-        if (!reason) return;
-        try {
-          await rentalAPI.forceReturn(rentalId, { reason });
-          Alert.alert('완료', '강제 반납 처리됐습니다.');
-          load();
-        } catch (e) {
-          Alert.alert('오류', e.response?.data?.message || '처리 실패');
-        }
-      },
-      'plain-text'
-    );
+  // 화면 포커스될 때마다 자동 갱신
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const openForceModal = (item) => {
+    setForceTarget(item);
+    setForceReason('');
+    setForceModal(true);
+  };
+
+  const handleForceReturn = async () => {
+    if (!forceReason.trim()) {
+      Alert.alert('알림', '강제 반납 사유를 입력해주세요.');
+      return;
+    }
+    setForceLoading(true);
+    try {
+      await rentalAPI.forceReturn(forceTarget._id, { reason: forceReason });
+      setForceModal(false);
+      setForceTarget(null);
+      setForceReason('');
+      Alert.alert('완료', '강제 반납 처리됐습니다.');
+      load();
+    } catch (e) {
+      Alert.alert('오류', e.response?.data?.message || '처리 실패');
+    } finally { setForceLoading(false); }
   };
 
   if (loading) return <Loading />;
@@ -59,7 +74,6 @@ export default function AdminDashboard() {
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.grayLight }}>
-      {/* 헤더 */}
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>관리자 대시보드</Text>
@@ -75,7 +89,6 @@ export default function AdminDashboard() {
         contentContainerStyle={{ padding: 16 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} tintColor={COLORS.primary} />}
       >
-        {/* 통계 카드 */}
         <View style={styles.statGrid}>
           {statCards.map((c) => (
             <View key={c.label} style={styles.statCard}>
@@ -85,7 +98,6 @@ export default function AdminDashboard() {
           ))}
         </View>
 
-        {/* 오늘 반납 예정 */}
         <Text style={styles.sectionTitle}>오늘 반납 예정 ({today.length}건)</Text>
         {today.length === 0
           ? <Text style={styles.emptyText}>없음</Text>
@@ -104,7 +116,6 @@ export default function AdminDashboard() {
           ))
         }
 
-        {/* 연체 목록 */}
         <Text style={[styles.sectionTitle, { marginTop: 8 }]}>연체 목록 ({overdue.length}건)</Text>
         {overdue.length === 0
           ? <Text style={styles.emptyText}>연체 없음 ✅</Text>
@@ -120,7 +131,7 @@ export default function AdminDashboard() {
                   </View>
                   <TouchableOpacity
                     style={[styles.badge, { backgroundColor: COLORS.redLight }]}
-                    onPress={() => handleForceReturn(r._id, r.equipment?.modelName)}
+                    onPress={() => openForceModal(r)}
                   >
                     <Text style={[styles.badgeText, { color: COLORS.red }]}>강제 반납</Text>
                   </TouchableOpacity>
@@ -130,14 +141,13 @@ export default function AdminDashboard() {
           })
         }
 
-        {/* 빠른 메뉴 */}
         <Text style={[styles.sectionTitle, { marginTop: 8 }]}>바로가기</Text>
         <View style={styles.menuGrid}>
           {[
-            { label: '기자재 등록', color: COLORS.mint,     bg: COLORS.mintLight,    tab: '기자재' },
-            { label: '연장 요청',   color: COLORS.purple,    bg: COLORS.purpleLight,  tab: '대여 현황' },
-            { label: '패널티 관리', color: COLORS.warning,   bg: COLORS.warningLight, tab: '패널티' },
-            { label: '전체 이력',   color: COLORS.gray,      bg: COLORS.grayLight,    tab: '대여 현황' },
+            { label: '기자재 등록', color: COLORS.mint,    bg: COLORS.mintLight,    tab: '기자재' },
+            { label: '연장 요청',   color: COLORS.purple,   bg: COLORS.purpleLight,  tab: '대여 현황' },
+            { label: '패널티 관리', color: COLORS.warning,  bg: COLORS.warningLight, tab: '패널티' },
+            { label: '전체 이력',   color: COLORS.gray,     bg: COLORS.grayLight,    tab: '대여 현황' },
           ].map((m) => (
             <TouchableOpacity key={m.label} style={[styles.menuCard, { backgroundColor: m.bg }]}
               onPress={() => navigation.navigate(m.tab)}>
@@ -146,26 +156,62 @@ export default function AdminDashboard() {
           ))}
         </View>
       </ScrollView>
+
+      {/* 강제 반납 모달 */}
+      <Modal visible={forceModal} animationType="fade" transparent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+          <View style={styles.forceModalBox}>
+            <Text style={styles.forceModalTitle}>강제 반납</Text>
+            <Text style={styles.forceModalSub}>{forceTarget?.equipment?.modelName}</Text>
+            <Text style={styles.forceModalLabel}>반납 사유 *</Text>
+            <TextInput
+              style={styles.forceInput}
+              placeholder="강제 반납 사유를 입력하세요"
+              value={forceReason}
+              onChangeText={setForceReason}
+              multiline
+              numberOfLines={3}
+              autoFocus
+            />
+            <View style={styles.forceBtnRow}>
+              <OutlineButton title="취소" onPress={() => setForceModal(false)} style={{ flex: 1, marginRight: 8 }} />
+              <Button
+                title={forceLoading ? '처리 중...' : '강제 반납'}
+                onPress={handleForceReturn}
+                loading={forceLoading}
+                style={{ flex: 1, backgroundColor: COLORS.red }}
+              />
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { backgroundColor: COLORS.primaryDark, paddingTop: 52, paddingBottom: 16, paddingHorizontal: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  headerTitle: { color: COLORS.white, fontSize: 20, fontWeight: '700' },
-  headerSub: { color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 2 },
-  logoutBtn: { backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
-  statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
-  statCard: { flex: 1, minWidth: '45%', backgroundColor: COLORS.white, borderRadius: 12, padding: 14, borderWidth: 0.5, borderColor: COLORS.border },
-  statLabel: { fontSize: 12, color: COLORS.gray },
-  statNum: { fontSize: 26, fontWeight: '700', marginTop: 4 },
-  sectionTitle: { fontSize: 13, fontWeight: '700', color: COLORS.gray, marginBottom: 8 },
-  emptyText: { fontSize: 13, color: COLORS.gray, textAlign: 'center', paddingVertical: 16 },
-  itemTitle: { fontSize: 14, fontWeight: '600', color: COLORS.text },
-  itemSub: { fontSize: 12, color: COLORS.gray, marginTop: 2 },
-  badge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
-  badgeText: { fontSize: 12, fontWeight: '600' },
-  menuGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  menuCard: { flex: 1, minWidth: '45%', borderRadius: 12, padding: 16 },
-  menuLabel: { fontSize: 14, fontWeight: '700' },
+  header:          { backgroundColor: COLORS.primaryDark, paddingTop: 52, paddingBottom: 16, paddingHorizontal: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  headerTitle:     { color: COLORS.white, fontSize: 20, fontWeight: '700' },
+  headerSub:       { color: 'rgba(255,255,255,0.7)', fontSize: 12, marginTop: 2 },
+  logoutBtn:       { backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 12, paddingVertical: 7, borderRadius: 8 },
+  statGrid:        { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 16 },
+  statCard:        { flex: 1, minWidth: '45%', backgroundColor: COLORS.white, borderRadius: 12, padding: 14, borderWidth: 0.5, borderColor: COLORS.border },
+  statLabel:       { fontSize: 12, color: COLORS.gray },
+  statNum:         { fontSize: 26, fontWeight: '700', marginTop: 4 },
+  sectionTitle:    { fontSize: 13, fontWeight: '700', color: COLORS.gray, marginBottom: 8 },
+  emptyText:       { fontSize: 13, color: COLORS.gray, textAlign: 'center', paddingVertical: 16 },
+  itemTitle:       { fontSize: 14, fontWeight: '600', color: COLORS.text },
+  itemSub:         { fontSize: 12, color: COLORS.gray, marginTop: 2 },
+  badge:           { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  badgeText:       { fontSize: 12, fontWeight: '600' },
+  menuGrid:        { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  menuCard:        { flex: 1, minWidth: '45%', borderRadius: 12, padding: 16 },
+  menuLabel:       { fontSize: 14, fontWeight: '700' },
+  modalOverlay:    { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  forceModalBox:   { backgroundColor: COLORS.white, borderRadius: 16, padding: 24, width: '100%' },
+  forceModalTitle: { fontSize: 17, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
+  forceModalSub:   { fontSize: 13, color: COLORS.gray, marginBottom: 16 },
+  forceModalLabel: { fontSize: 13, color: COLORS.gray, marginBottom: 6 },
+  forceInput:      { borderWidth: 0.5, borderColor: COLORS.border, borderRadius: 10, padding: 12, fontSize: 14, minHeight: 80, textAlignVertical: 'top', marginBottom: 16 },
+  forceBtnRow:     { flexDirection: 'row' },
 });
