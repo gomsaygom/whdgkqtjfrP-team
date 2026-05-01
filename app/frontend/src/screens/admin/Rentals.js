@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  Alert, RefreshControl, Modal, Image,
+  Alert, RefreshControl, Modal, Image, TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { rentalAPI } from '../../api';
 import { BASE_URL } from '../../api';
 import { COLORS, RENTAL_STATUS } from '../../theme';
-import { Badge, Card, Empty, Loading, Button } from '../../components/UI';
+import { Badge, Card, Empty, Loading, Button, OutlineButton } from '../../components/UI';
 
 const TABS = [
   { key: 'ACTIVE',   label: '대여 중' },
@@ -16,12 +16,18 @@ const TABS = [
 ];
 
 export default function AdminRentals() {
-  const [tab, setTab]         = useState('ACTIVE');
-  const [rentals, setRentals] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [tab, setTab]               = useState('ACTIVE');
+  const [rentals, setRentals]       = useState([]);
+  const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [photoModal, setPhotoModal] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
+
+  // 강제반납 모달
+  const [forceModal, setForceModal]     = useState(false);
+  const [forceTarget, setForceTarget]   = useState(null);
+  const [forceReason, setForceReason]   = useState('');
+  const [forceLoading, setForceLoading] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -38,12 +44,28 @@ export default function AdminRentals() {
 
   useEffect(() => { setLoading(true); load(); }, [load]);
 
-  const handleForceReturn = (id, name) => {
-    Alert.prompt('강제 반납', `"${name}" 강제 반납 사유를 입력하세요.`, async (reason) => {
-      if (!reason) return;
-      try { await rentalAPI.forceReturn(id, { reason }); load(); Alert.alert('완료', '강제 반납 처리됐습니다.'); }
-      catch (e) { Alert.alert('오류', e.response?.data?.message || '처리 실패'); }
-    }, 'plain-text');
+  const openForceModal = (item) => {
+    setForceTarget(item);
+    setForceReason('');
+    setForceModal(true);
+  };
+
+  const handleForceReturn = async () => {
+    if (!forceReason.trim()) {
+      Alert.alert('알림', '강제 반납 사유를 입력해주세요.');
+      return;
+    }
+    setForceLoading(true);
+    try {
+      await rentalAPI.forceReturn(forceTarget._id, { reason: forceReason });
+      setForceModal(false);
+      setForceTarget(null);
+      setForceReason('');
+      Alert.alert('완료', '강제 반납 처리됐습니다.');
+      load();
+    } catch (e) {
+      Alert.alert('오류', e.response?.data?.message || '처리 실패');
+    } finally { setForceLoading(false); }
   };
 
   const handleApproveExtend = async (id, newDueDate) => {
@@ -132,8 +154,7 @@ export default function AdminRentals() {
         )}
 
         {item.status !== 'RETURNED' && (
-          <TouchableOpacity style={styles.forceBtn}
-            onPress={() => handleForceReturn(item._id, item.equipment?.modelName)}>
+          <TouchableOpacity style={styles.forceBtn} onPress={() => openForceModal(item)}>
             <Text style={styles.forceBtnText}>강제 반납</Text>
           </TouchableOpacity>
         )}
@@ -176,11 +197,7 @@ export default function AdminRentals() {
           </View>
           {selectedPhoto && (
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-              <Image
-                source={{ uri: selectedPhoto }}
-                style={{ width: '100%', height: '80%' }}
-                resizeMode="contain"
-              />
+              <Image source={{ uri: selectedPhoto }} style={{ width: '100%', height: '80%' }} resizeMode="contain" />
             </View>
           )}
           <View style={{ padding: 16 }}>
@@ -188,35 +205,77 @@ export default function AdminRentals() {
           </View>
         </View>
       </Modal>
+
+      {/* 강제 반납 모달 */}
+      <Modal visible={forceModal} animationType="fade" transparent>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalOverlay}>
+          <View style={styles.forceModalBox}>
+            <Text style={styles.forceModalTitle}>강제 반납</Text>
+            <Text style={styles.forceModalSub}>
+              {forceTarget?.equipment?.modelName}
+            </Text>
+            <Text style={styles.forceModalLabel}>반납 사유 *</Text>
+            <TextInput
+              style={styles.forceInput}
+              placeholder="강제 반납 사유를 입력하세요"
+              value={forceReason}
+              onChangeText={setForceReason}
+              multiline
+              numberOfLines={3}
+              autoFocus
+            />
+            <View style={styles.forceBtnRow}>
+              <OutlineButton
+                title="취소"
+                onPress={() => setForceModal(false)}
+                style={{ flex: 1, marginRight: 8 }}
+              />
+              <Button
+                title={forceLoading ? '처리 중...' : '강제 반납'}
+                onPress={handleForceReturn}
+                loading={forceLoading}
+                style={{ flex: 1, backgroundColor: COLORS.red }}
+              />
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { backgroundColor: COLORS.white, paddingTop: 52, paddingBottom: 14, paddingHorizontal: 16, borderBottomWidth: 0.5, borderBottomColor: COLORS.border },
-  headerTitle: { fontSize: 18, fontWeight: '700', color: COLORS.text },
-  tabRow: { flexDirection: 'row', backgroundColor: COLORS.white, borderBottomWidth: 0.5, borderBottomColor: COLORS.border },
-  tabBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
-  tabBtnActive: { borderBottomColor: COLORS.primary },
-  tabText: { fontSize: 12, color: COLORS.gray },
-  tabTextActive: { color: COLORS.primary, fontWeight: '700' },
-  equipName: { fontSize: 14, fontWeight: '600', color: COLORS.text },
-  userName: { fontSize: 12, color: COLORS.gray, marginTop: 2 },
-  dateRow: { flexDirection: 'row', gap: 16, marginBottom: 4 },
-  dateText: { fontSize: 12, color: COLORS.gray },
-  overdueText: { fontSize: 12, color: COLORS.red, fontWeight: '700', marginBottom: 4 },
-  purposeText: { fontSize: 12, color: COLORS.gray, marginBottom: 4 },
-  photoBtn: { marginTop: 8, backgroundColor: '#EEEDFE', borderRadius: 8, paddingVertical: 9, alignItems: 'center' },
-  photoBtnText: { fontSize: 13, fontWeight: '600', color: '#534AB7' },
-  noPhotoBox: { marginTop: 8, backgroundColor: COLORS.grayLight, borderRadius: 8, paddingVertical: 9, alignItems: 'center' },
-  noPhotoText: { fontSize: 12, color: COLORS.gray },
-  extendBox: { backgroundColor: '#F0FAF9', borderRadius: 10, padding: 12, marginTop: 8, borderWidth: 0.5, borderColor: COLORS.mint },
-  extendTitle: { fontSize: 13, fontWeight: '700', color: COLORS.primary, marginBottom: 4 },
-  extendDate: { fontSize: 13, color: COLORS.text, marginBottom: 10 },
-  extendBtnRow: { flexDirection: 'row', gap: 8 },
-  extendBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
-  extendBtnText: { fontSize: 13, fontWeight: '700' },
-  forceBtn: { marginTop: 8, alignSelf: 'flex-end', backgroundColor: COLORS.redLight, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8 },
-  forceBtnText: { fontSize: 12, fontWeight: '700', color: COLORS.red },
+  header:           { backgroundColor: COLORS.white, paddingTop: 52, paddingBottom: 14, paddingHorizontal: 16, borderBottomWidth: 0.5, borderBottomColor: COLORS.border },
+  headerTitle:      { fontSize: 18, fontWeight: '700', color: COLORS.text },
+  tabRow:           { flexDirection: 'row', backgroundColor: COLORS.white, borderBottomWidth: 0.5, borderBottomColor: COLORS.border },
+  tabBtn:           { flex: 1, paddingVertical: 10, alignItems: 'center', borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  tabBtnActive:     { borderBottomColor: COLORS.primary },
+  tabText:          { fontSize: 12, color: COLORS.gray },
+  tabTextActive:    { color: COLORS.primary, fontWeight: '700' },
+  equipName:        { fontSize: 14, fontWeight: '600', color: COLORS.text },
+  userName:         { fontSize: 12, color: COLORS.gray, marginTop: 2 },
+  dateRow:          { flexDirection: 'row', gap: 16, marginBottom: 4 },
+  dateText:         { fontSize: 12, color: COLORS.gray },
+  overdueText:      { fontSize: 12, color: COLORS.red, fontWeight: '700', marginBottom: 4 },
+  purposeText:      { fontSize: 12, color: COLORS.gray, marginBottom: 4 },
+  photoBtn:         { marginTop: 8, backgroundColor: '#EEEDFE', borderRadius: 8, paddingVertical: 9, alignItems: 'center' },
+  photoBtnText:     { fontSize: 13, fontWeight: '600', color: '#534AB7' },
+  noPhotoBox:       { marginTop: 8, backgroundColor: COLORS.grayLight, borderRadius: 8, paddingVertical: 9, alignItems: 'center' },
+  noPhotoText:      { fontSize: 12, color: COLORS.gray },
+  extendBox:        { backgroundColor: '#F0FAF9', borderRadius: 10, padding: 12, marginTop: 8, borderWidth: 0.5, borderColor: COLORS.mint },
+  extendTitle:      { fontSize: 13, fontWeight: '700', color: COLORS.primary, marginBottom: 4 },
+  extendDate:       { fontSize: 13, color: COLORS.text, marginBottom: 10 },
+  extendBtnRow:     { flexDirection: 'row', gap: 8 },
+  extendBtn:        { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
+  extendBtnText:    { fontSize: 13, fontWeight: '700' },
+  forceBtn:         { marginTop: 8, alignSelf: 'flex-end', backgroundColor: COLORS.redLight, paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8 },
+  forceBtnText:     { fontSize: 12, fontWeight: '700', color: COLORS.red },
   photoModalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, paddingTop: 52 },
+  modalOverlay:     { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 },
+  forceModalBox:    { backgroundColor: COLORS.white, borderRadius: 16, padding: 24, width: '100%' },
+  forceModalTitle:  { fontSize: 17, fontWeight: '700', color: COLORS.text, marginBottom: 4 },
+  forceModalSub:    { fontSize: 13, color: COLORS.gray, marginBottom: 16 },
+  forceModalLabel:  { fontSize: 13, color: COLORS.gray, marginBottom: 6 },
+  forceInput:       { borderWidth: 0.5, borderColor: COLORS.border, borderRadius: 10, padding: 12, fontSize: 14, minHeight: 80, textAlignVertical: 'top', marginBottom: 16 },
+  forceBtnRow:      { flexDirection: 'row' },
 });
