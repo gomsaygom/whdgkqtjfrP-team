@@ -10,7 +10,7 @@ const { Rental, User, Penalty, Equipment } = require('./models');
 const { sendNotification }                 = require('./utils/fcm');
 const {
   authRouter, catRouter, eqRouter,
-  rentRouter, adminRouter, reportRouter,
+  rentRouter, adminRouter, reportRouter, waitlistRouter,
 } = require('./routes');
 
 const authRouterV2 = require('./routes/auth');
@@ -32,10 +32,11 @@ app.use('/api/equipment',  eqRouter);
 app.use('/api/rentals',    rentRouter);
 app.use('/api/admin',      adminRouter);
 app.use('/api/reports',    reportRouter);
+app.use('/api/waitlist',   waitlistRouter);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date() }));
 
-// FCM 헬퍼 — user 객체에 fcmToken 있으면 발송
+// FCM 헬퍼
 async function sendPushToUser(user, title, body, data = {}) {
   if (!user?.fcmToken) return;
   await sendNotification(user.fcmToken, title, body, data);

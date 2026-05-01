@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, Alert } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { equipmentAPI } from '../api';
+import { equipmentAPI, waitlistAPI } from '../api';
 import { COLORS, STATUS } from '../theme';
 import { Badge, Button, OutlineButton, Card, Loading, Divider } from '../components/UI';
 
@@ -19,12 +19,18 @@ const CAT_EMOJI = {
 export default function EquipmentDetail() {
   const { params: { id } } = useRoute();
   const navigation = useNavigation();
-  const [item, setItem] = useState(null);
+  const [item, setItem]           = useState(null);
+  const [waitInfo, setWaitInfo]   = useState({ count: 0, isWaiting: false, waitlistId: null });
+  const [loading, setLoading]     = useState(false);
 
   useEffect(() => {
     equipmentAPI.getOne(id)
       .then((r) => setItem(r.data))
       .catch(() => Alert.alert('오류', '기자재 정보를 불러올 수 없습니다.'));
+
+    waitlistAPI.getByEquipment(id)
+      .then((r) => setWaitInfo(r.data))
+      .catch(() => {});
   }, [id]);
 
   if (!item) return <Loading />;
@@ -33,8 +39,54 @@ export default function EquipmentDetail() {
   const emoji = CAT_EMOJI[item.category?.name] || '📦';
 
   const handleRentPress = () => {
-    // QR 스캔 화면으로 이동 (대여할 기자재 ID 전달)
     navigation.navigate('QR 스캔', { rentItemId: item._id });
+  };
+
+  const handleWaitlist = async () => {
+    if (waitInfo.isWaiting) {
+      Alert.alert(
+        '예약 대기 취소',
+        '예약 대기를 취소하시겠습니까?',
+        [
+          { text: '아니오', style: 'cancel' },
+          {
+            text: '취소하기',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                setLoading(true);
+                await waitlistAPI.cancel(waitInfo.waitlistId);
+                setWaitInfo({ count: waitInfo.count - 1, isWaiting: false, waitlistId: null });
+                Alert.alert('완료', '예약 대기가 취소됐습니다.');
+              } catch (e) {
+                Alert.alert('오류', e.response?.data?.message || '취소 실패');
+              } finally { setLoading(false); }
+            },
+          },
+        ]
+      );
+    } else {
+      Alert.alert(
+        '예약 대기',
+        `현재 ${waitInfo.count}명이 대기 중입니다.\n예약 대기를 신청하시겠습니까?`,
+        [
+          { text: '아니오', style: 'cancel' },
+          {
+            text: '신청하기',
+            onPress: async () => {
+              try {
+                setLoading(true);
+                const res = await waitlistAPI.join(id);
+                setWaitInfo({ count: waitInfo.count + 1, isWaiting: true, waitlistId: res.data.waitlistId });
+                Alert.alert('완료', res.data.message);
+              } catch (e) {
+                Alert.alert('오류', e.response?.data?.message || '신청 실패');
+              } finally { setLoading(false); }
+            },
+          },
+        ]
+      );
+    }
   };
 
   return (
@@ -87,10 +139,24 @@ export default function EquipmentDetail() {
           </View>
         )}
 
-        {/* 대여 중 */}
+        {/* 대여 중 — 예약 대기 버튼 */}
         {item.status === 'RENTED' && (
-          <View style={styles.rentedBox}>
-            <Text style={styles.rentedText}>현재 다른 사람이 대여 중입니다.</Text>
+          <View>
+            <View style={styles.rentedBox}>
+              <Text style={styles.rentedText}>현재 다른 사람이 대여 중입니다.</Text>
+              {waitInfo.count > 0 && (
+                <Text style={styles.waitCountText}>대기 인원: {waitInfo.count}명</Text>
+              )}
+            </View>
+            <Button
+              title={waitInfo.isWaiting ? '예약 대기 취소' : '예약 대기 신청'}
+              onPress={handleWaitlist}
+              loading={loading}
+              style={{
+                marginBottom: 10,
+                backgroundColor: waitInfo.isWaiting ? COLORS.red : COLORS.orange,
+              }}
+            />
           </View>
         )}
 
@@ -101,7 +167,7 @@ export default function EquipmentDetail() {
           </View>
         )}
 
-        {/* 고장/파손 신고 — 항상 표시 */}
+        {/* 고장/파손 신고 */}
         <OutlineButton
           title="고장/파손 신고"
           onPress={() => navigation.navigate('DamageReport', { equipmentId: id })}
@@ -126,8 +192,7 @@ const styles = StyleSheet.create({
   warningText:   { fontSize: 13, color: '#633806', fontWeight: '500', textAlign: 'center', lineHeight: 20 },
   rentedBox:     { backgroundColor: COLORS.redLight, borderRadius: 10, padding: 12, marginBottom: 10, alignItems: 'center' },
   rentedText:    { fontSize: 13, color: COLORS.red, fontWeight: '500' },
+  waitCountText: { fontSize: 12, color: COLORS.gray, marginTop: 4 },
   repairBox:     { backgroundColor: COLORS.warningLight, borderRadius: 10, padding: 12, marginBottom: 10, alignItems: 'center' },
   repairText:    { fontSize: 13, color: COLORS.warning, fontWeight: '500' },
 });
-
-module.exports = EquipmentDetail;

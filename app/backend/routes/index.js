@@ -5,19 +5,18 @@ const multer  = require('multer');
 const path    = require('path');
 
 const { User, Admin, Category, Equipment, Rental, Penalty, StatusHistory, DamageReport } = require('../models');
+const Waitlist = require('../models').Waitlist;
 const { protect, adminOnly } = require('../middleware/auth');
 const { sendNotification }   = require('../utils/fcm');
 
 const sign = (id, role) =>
   jwt.sign({ id, role }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' });
 
-// sendPushToUser 헬퍼
 async function sendPushToUser(user, title, body, data = {}) {
   if (!user?.fcmToken) return;
   await sendNotification(user.fcmToken, title, body, data);
 }
 
-// 파일 업로드 설정
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, 'uploads/'),
   filename:    (req, file, cb) => cb(null, Date.now() + path.extname(file.originalname)),
@@ -63,9 +62,9 @@ authRouter.get('/me', protect, (req, res) => res.json(req.user));
 // 2. CATEGORIES
 // ═══════════════════════════════════════════════════
 const catRouter = express.Router();
-catRouter.get('/',       protect,             async (req, res) => res.json(await Category.find()));
-catRouter.post('/',      protect, adminOnly,  async (req, res) => res.status(201).json(await Category.create(req.body)));
-catRouter.put('/:id',   protect, adminOnly,  async (req, res) => res.json(await Category.findByIdAndUpdate(req.params.id, req.body, { new: true })));
+catRouter.get('/',        protect,            async (req, res) => res.json(await Category.find()));
+catRouter.post('/',       protect, adminOnly, async (req, res) => res.status(201).json(await Category.create(req.body)));
+catRouter.put('/:id',    protect, adminOnly, async (req, res) => res.json(await Category.findByIdAndUpdate(req.params.id, req.body, { new: true })));
 catRouter.delete('/:id', protect, adminOnly, async (req, res) => { await Category.findByIdAndDelete(req.params.id); res.json({ message: '삭제됐습니다.' }); });
 
 // ═══════════════════════════════════════════════════
@@ -173,6 +172,17 @@ rentRouter.put('/:id/return', protect, upload.single('photo'), async (req, res) 
     rental.returnPhotoUrl = req.file ? `/uploads/${req.file.filename}` : '';
     await rental.save();
     await Equipment.findByIdAndUpdate(rental.equipment, { status: 'AVAILABLE' });
+
+    // 예약 대기자에게 알림
+    const waitlist = await Waitlist.find({ equipment: rental.equipment, status: 'WAITING' })
+      .sort({ createdAt: 1 })
+      .populate('user');
+    for (const w of waitlist) {
+      w.status = 'NOTIFIED';
+      await w.save();
+      await sendPushToUser(w.user, '📦 예약 대기 알림', `${rental.equipment} 기자재가 반납됐습니다. 지금 대여하세요!`);
+    }
+
     res.json({ message: '반납이 완료됐습니다.' });
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
@@ -183,9 +193,9 @@ rentRouter.put('/:id/extend', protect, async (req, res) => {
     const rental = await Rental.findById(req.params.id).populate('user');
     if (!rental) return res.status(404).json({ message: '대여를 찾을 수 없습니다.' });
     if (approved && req.user.role === 'admin') {
-      rental.dueDate           = rental.extendNewDueDate || newDueDate;
-      rental.extendRequested   = false;
-      rental.extendNewDueDate  = undefined;
+      rental.dueDate          = rental.extendNewDueDate || newDueDate;
+      rental.extendRequested  = false;
+      rental.extendNewDueDate = undefined;
       await rental.save();
       await sendPushToUser(rental.user, '연장 승인', `반납 예정일이 ${new Date(rental.dueDate).toLocaleDateString('ko-KR')}로 변경됐습니다.`);
       return res.json({ message: '연장이 승인됐습니다.' });
@@ -193,13 +203,10 @@ rentRouter.put('/:id/extend', protect, async (req, res) => {
     rental.extendRequested  = true;
     rental.extendNewDueDate = newDueDate;
     await rental.save();
-
-    // 모든 관리자에게 알림
     const admins = await Admin.find({ fcmToken: { $exists: true, $ne: null } });
     for (const admin of admins) {
       await sendPushToUser(admin, '연장 신청 접수', `${rental.user?.name || '사용자'}님이 반납 연장을 신청했습니다.`);
     }
-
     res.json({ message: '연장 신청이 접수됐습니다. 관리자 승인 후 확정됩니다.' });
   } catch (e) { res.status(500).json({ message: e.message }); }
 });
@@ -209,11 +216,11 @@ rentRouter.put('/:id/force-return', protect, adminOnly, async (req, res) => {
     const { reason } = req.body;
     const rental = await Rental.findById(req.params.id).populate('user');
     if (!rental) return res.status(404).json({ message: '없음' });
-    rental.status             = 'RETURNED';
-    rental.returnDate         = new Date();
-    rental.isForceReturn      = true;
-    rental.forceReturnReason  = reason;
-    rental.forceReturnBy      = req.user._id;
+    rental.status            = 'RETURNED';
+    rental.returnDate        = new Date();
+    rental.isForceReturn     = true;
+    rental.forceReturnReason = reason;
+    rental.forceReturnBy     = req.user._id;
     await rental.save();
     await Equipment.findByIdAndUpdate(rental.equipment, { status: 'AVAILABLE' });
     await sendPushToUser(rental.user, '강제 반납 처리', `기자재가 강제 반납 처리됐습니다. 사유: ${reason}`);
@@ -222,7 +229,64 @@ rentRouter.put('/:id/force-return', protect, adminOnly, async (req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
-// 5. ADMIN
+// 5. WAITLIST (예약 대기)
+// ═══════════════════════════════════════════════════
+const waitlistRouter = express.Router();
+
+// 예약 대기 신청
+waitlistRouter.post('/', protect, async (req, res) => {
+  try {
+    const { equipmentId } = req.body;
+    if (req.user.isSuspended)
+      return res.status(403).json({ message: '패널티로 인해 예약 대기가 불가합니다.' });
+    const eq = await Equipment.findById(equipmentId);
+    if (!eq) return res.status(404).json({ message: '기자재를 찾을 수 없습니다.' });
+    if (eq.status === 'AVAILABLE')
+      return res.status(400).json({ message: '현재 대여 가능한 기자재입니다. 바로 대여하세요.' });
+
+    // 중복 신청 방지
+    const existing = await Waitlist.findOne({ equipment: equipmentId, user: req.user._id, status: 'WAITING' });
+    if (existing) return res.status(400).json({ message: '이미 예약 대기 중입니다.' });
+
+    const waitlist = await Waitlist.create({ equipment: equipmentId, user: req.user._id });
+    const position = await Waitlist.countDocuments({ equipment: equipmentId, status: 'WAITING', createdAt: { $lte: waitlist.createdAt } });
+    res.status(201).json({ message: `예약 대기가 등록됐습니다. 현재 대기 순번: ${position}번`, position });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// 내 예약 대기 목록
+waitlistRouter.get('/my', protect, async (req, res) => {
+  try {
+    const list = await Waitlist.find({ user: req.user._id, status: 'WAITING' })
+      .populate('equipment', 'modelName serialNumber status')
+      .sort({ createdAt: 1 });
+    res.json(list);
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// 예약 대기 취소
+waitlistRouter.delete('/:id', protect, async (req, res) => {
+  try {
+    const w = await Waitlist.findById(req.params.id);
+    if (!w) return res.status(404).json({ message: '예약 대기를 찾을 수 없습니다.' });
+    if (w.user.toString() !== req.user._id.toString())
+      return res.status(403).json({ message: '권한이 없습니다.' });
+    await w.deleteOne();
+    res.json({ message: '예약 대기가 취소됐습니다.' });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// 기자재별 대기 인원 조회
+waitlistRouter.get('/equipment/:equipmentId', protect, async (req, res) => {
+  try {
+    const count = await Waitlist.countDocuments({ equipment: req.params.equipmentId, status: 'WAITING' });
+    const myWait = await Waitlist.findOne({ equipment: req.params.equipmentId, user: req.user._id, status: 'WAITING' });
+    res.json({ count, isWaiting: !!myWait, waitlistId: myWait?._id });
+  } catch (e) { res.status(500).json({ message: e.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// 6. ADMIN
 // ═══════════════════════════════════════════════════
 const adminRouter = express.Router();
 
@@ -287,7 +351,7 @@ adminRouter.put('/penalty/:userId/reduce', protect, adminOnly, async (req, res) 
 });
 
 // ═══════════════════════════════════════════════════
-// 6. DAMAGE REPORTS
+// 7. DAMAGE REPORTS
 // ═══════════════════════════════════════════════════
 const reportRouter = express.Router();
 
@@ -314,4 +378,4 @@ reportRouter.put('/damage/:id', protect, adminOnly, async (req, res) => {
   res.json(await DamageReport.findByIdAndUpdate(req.params.id, { ...req.body, resolvedBy: req.user._id }, { new: true }));
 });
 
-module.exports = { authRouter, catRouter, eqRouter, rentRouter, adminRouter, reportRouter };
+module.exports = { authRouter, catRouter, eqRouter, rentRouter, adminRouter, reportRouter, waitlistRouter };

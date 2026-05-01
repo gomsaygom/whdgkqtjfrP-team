@@ -123,6 +123,13 @@ const damageReportSchema = new mongoose.Schema({
   resolvedNote: String,
 }, { timestamps: true });
 
+// ── Waitlist ──────────────────────────────────────
+const waitlistSchema = new mongoose.Schema({
+  equipment: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment', required: true },
+  user:      { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  status:    { type: String, enum: ['WAITING', 'NOTIFIED', 'EXPIRED'], default: 'WAITING' },
+}, { timestamps: true });
+
 module.exports = {
   User:          mongoose.model('User', userSchema),
   Admin:         mongoose.model('Admin', adminSchema),

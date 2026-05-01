@@ -69,4 +69,11 @@ export const reportAPI = {
   updateDamage: (id, d)  => api.put(`/reports/damage/${id}`, d),
 };
 
+export const waitlistAPI = {
+  join:          (equipmentId)  => api.post('/waitlist', { equipmentId }),
+  getMyList:     ()             => api.get('/waitlist/my'),
+  cancel:        (id)           => api.delete(`/waitlist/${id}`),
+  getByEquipment:(equipmentId)  => api.get(`/waitlist/equipment/${equipmentId}`),
+};
+
 export default api;
