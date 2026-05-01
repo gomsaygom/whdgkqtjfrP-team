@@ -139,4 +139,5 @@ module.exports = {
   Penalty:       mongoose.model('Penalty', penaltySchema),
   StatusHistory: mongoose.model('StatusHistory', statusHistorySchema),
   DamageReport:  mongoose.model('DamageReport', damageReportSchema),
+  Waitlist:      mongoose.model('Waitlist', waitlistSchema),
 };
