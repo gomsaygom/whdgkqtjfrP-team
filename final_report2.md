@@ -11,7 +11,7 @@
 
 ### 1.1 목적
 
-학과 기자재 대여 관리 업무는 기존에 수기로 진행되어 관리 효율이 낮고, 연체 및 분실 사고가 빈번하게 발생하였다. 본 프로젝트는 QR 코드 기반의 스마트 기자재 대여 관리 앱을 개발하여 다음의 목표를 달성하고자 하였다.
+학과 기자재 대여 관리 업무는 기존에 수기로 진행되어 관리 효율이 낮고, 연체 및 분실 사고가 빈번하게 발생하였다. 본 프로젝트는 QR 코드 기반의[...]  
 
 - QR 코드를 활용한 기자재 대여 및 반납 프로세스 자동화
 - 관리자 대시보드를 통한 실시간 재고 및 대여 현황 파악
@@ -78,6 +78,27 @@
 
 ### 2.2 유스케이스 다이어그램
 
+```mermaid
+flowchart LR
+  actor1([학생])
+  actor2([관리자])
+  UC1((회원가입/로그인))
+  UC2((QR 스캔 대여))
+  UC3((반납 처리))
+  UC4((연장 신청))
+  UC5((예약 대기))
+  UC6((강제 반납))
+  UC7((패널티 관리))
+  actor1 --> UC1
+  actor1 --> UC2
+  actor1 --> UC3
+  actor1 --> UC4
+  actor1 --> UC5
+  actor2 --> UC6
+  actor2 --> UC7
+  UC3 --> UC5
+```
+
 ![유스케이스 다이어그램](usecase.png)
 
 ---
@@ -143,15 +164,96 @@
 
 #### QR 스캔 대여 흐름
 
+```mermaid
+sequenceDiagram
+  actor 학생
+  participant 앱 as Mobile App
+  participant 서버 as API Server
+  participant DB as MongoDB
+  학생->>앱: QR 스캔
+  앱->>서버: POST /rentals (equipmentId, 기간)
+  서버->>DB: equipment 조회/상태 확인
+  DB-->>서버: equipment
+  서버->>DB: rental 생성, status RENTED
+  서버-->>앱: 대여 완료 응답
+  앱-->>학생: 완료 메시지
+```
+
 ![QR 스캔 대여 시퀀스](seq_rental.png)
 
 #### FCM 알림 발송 흐름 (연체 자동 처리)
+
+```mermaid
+sequenceDiagram
+  participant 크론 as Cron Job
+  participant 서버 as API Server
+  participant DB as MongoDB
+  participant FCM as Firebase FCM
+  participant 학생 as Student Device
+  크론->>서버: 자정 스케줄 실행
+  서버->>DB: overdue 대상 조회
+  DB-->>서버: rentals
+  loop 각 대여
+    서버->>DB: status OVERDUE, penalty 업데이트
+    서버->>FCM: 푸시 발송 요청
+    FCM-->>학생: 알림 전달
+  end
+```
 
 ![FCM 알림 시퀀스](seq_fcm.png)
 
 ---
 
-### 3.3 데이터베이스 설계
+### 3.3 클래스 다이어그램
+
+```mermaid
+classDiagram
+  class User {
+    +ObjectId _id
+    +String studentId
+    +String name
+    +String email
+    +String password
+    +Number penaltyScore
+    +Boolean isSuspended
+    +String fcmToken
+  }
+  class Equipment {
+    +ObjectId _id
+    +String serialNumber
+    +String modelName
+    +String status
+    +Number maxRentalDays
+  }
+  class Rental {
+    +ObjectId _id
+    +Date dueDate
+    +Date returnDate
+    +String status
+    +Boolean extendRequested
+    +Boolean isForceReturn
+  }
+  class Waitlist {
+    +ObjectId _id
+    +String status
+  }
+  class Penalty {
+    +ObjectId _id
+    +Number score
+    +String reason
+  }
+
+  User "1" --> "0..*" Rental : rents
+  Equipment "1" --> "0..*" Rental : is rented
+  User "1" --> "0..*" Waitlist : waits
+  Equipment "1" --> "0..*" Waitlist : waitlist
+  User "1" --> "0..*" Penalty : penalties
+  Rental "1" --> "0..*" Penalty : causes
+```
+
+---
+
+### 3.4 데이터베이스 설계
 
 총 10개 컬렉션으로 구성하였다.
 
@@ -205,7 +307,7 @@
 
 ---
 
-### 3.4 API 설계
+### 3.5 API 설계
 
 **Base URL**: `https://equipment-rental-app-production.up.railway.app/api`
 
@@ -226,7 +328,7 @@
 
 ---
 
-### 3.5 알고리즘 설계 — 연체 자동 처리 (Cron)
+### 3.6 알고리즘 설계 — 연체 자동 처리 (Cron)
 
 ```
 [매일 자정 실행]
@@ -424,7 +526,7 @@ waitlistRouter.post('/', protect, async (req, res) => {
 
 ### 6.1 작업 결과
 
-본 프로젝트를 통해 React Native, Node.js, MongoDB를 활용한 풀스택 모바일 앱 개발을 완성하였다. 총 4주에 걸쳐 설계부터 배포까지의 전 과정을 경험하였으며, 주요 성과는 다음과 같다.
+본 프로젝트를 통해 React Native, Node.js, MongoDB를 활용한 풀스택 모바일 앱 개발을 완성하였다. 총 4주에 걸쳐 설계부터 배포까지의 전 과정을 경험하였으[...]  
 
 - QR 코드 기반 대여/반납 시스템 완성
 - Firebase FCM 푸시 알림 실시간 발송 구현
