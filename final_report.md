@@ -1,207 +1,33 @@
-## 1. 프로젝트 개요
+## 실험의 목적과 범위
 
-### 1.1 배경 및 목적
+### 목적
+- QR 기반 기자재 대여/반납 자동화 시스템의 기능 완성도 검증
+- 관리자/학생 흐름에서 발생하는 오류와 예외 처리 확인
+- FCM 알림, 연체 감지, 예약 대기 등 핵심 자동화 기능의 유효성 확인
 
-학과 기자재 대여 관리 업무는 기존에 수기로 진행되어 관리 효율이 낮고 연체 및 분실 사고가 빈번하게 발생하였다. 이를 해결하기 위해 QR 코드 기반의 기자재 대여 관리 시스템을 구현하고자 한다. 이를 통해 사용자와 관리자의 업무 부담을 줄이고, 기자재의 효율적 활용과 재고 관리를 가능하게 한다.
+### 범위 (포함)
+- 학생 앱: 회원가입/로그인, QR 스캔 대여, 반납(사진 첨부), 연장/예약 대기
+- 관리자 앱: 기자재/카테고리 CRUD, 강제 반납, 패널티 관리
+- 백엔드: JWT 인증, 대여/반납 상태 전이, Cron 기반 연체/알림 자동화
+- 외부 연동: FCM 알림, 이메일 인증(SendGrid)
 
-### 1.2 프로젝트 목표
-
-- QR 코드를 활용한 기자재 대여 및 반납 프로세스 자동화
-- 관리자 대시보드를 통한 실시간 재고 및 대여 현황 파악
-- 연체 자동 감지 및 패널티 부과 시스템 구현
-- FCM 푸시 알림을 통한 실시간 사용자 알림 서비스 제공
-- 예약 대기 기능을 통한 기자재 활용도 향상
-- 클라우드 배포를 통한 24시간 서비스 운영
-
----
-
-## 2. 팀 구성 및 역할
-
-| 이름 | 역할 | 담당 업무 |
-|------|------|-----------|
-| 김민석 | 백엔드2 | CRUD API, QR 생성 API, API 문서화, 서버 최적화 |
-| 윤동훈 | 백엔드1 | MongoDB 스키마 설계, JWT 인증, FCM 알림 서버 |
-| 안효진 | 프론트2 | UI 컴포넌트, 기자재 화면, QR 스캔, API 연동, 예약 대기 |
-| 정건우 | 프론트1 | Figma 와이어프레임, 관리자 대시보드 UI, UI 개선 |
+### 범위 (불포함)
+- iOS 배포 및 실기기 테스트
+- 대규모 동시 접속 부하 테스트
+- 다국어 지원 및 접근성(Accessibility) 개선
 
 ---
 
-## 3. 기술 스택
+## 분석 (기능의 목록 - 유스케이스 + 명세서)
 
-### 3.1 프론트엔드
-
-| 기술 / 라이브러리 | 버전 | 용도 |
-|---|---|---|
-| React Native | 0.76 | 모바일 앱 프레임워크 |
-| Expo | SDK 54 | 개발 도구 & 빌드 |
-| EAS Build | - | Android APK 빌드 |
-| Axios | - | HTTP API 통신 |
-| AsyncStorage | - | JWT 토큰 로컬 저장 |
-| expo-camera | - | QR 코드 스캔 |
-| expo-notifications | - | FCM 푸시 알림 수신 |
-| expo-image-picker | - | 반납 사진 촬영 & 업로드 |
-| react-navigation | - | 화면 네비게이션 |
-
-### 3.2 백엔드
-
-| 기술 / 라이브러리 | 버전 | 용도 |
-|---|---|---|
-| Node.js | 18 | 서버 런타임 |
-| Express | - | REST API 프레임워크 |
-| Mongoose | - | MongoDB ODM |
-| jsonwebtoken | - | 사용자 인증 토큰 |
-| bcryptjs | - | 비밀번호 해시 암호화 |
-| Multer | - | 파일 업로드 처리 |
-| node-cron | - | 자동화 스케줄러 |
-| qrcode | - | QR 코드 자동 생성 |
-| firebase-admin | - | FCM 서버 알림 발송 |
-| @sendgrid/mail | - | 이메일 인증번호 발송 |
-
-### 3.3 외부 서비스
-
-| 서비스 | 용도 | 요금제 |
-|---|---|---|
-| Railway | 백엔드 클라우드 배포 | 무료 |
-| MongoDB Atlas | 클라우드 DB (M0) | 무료 |
-| Firebase FCM | 푸시 알림 서비스 | 무료 |
-| SendGrid | 이메일 발송 (100통/일) | 무료 |
-| Expo EAS | APK 빌드 서비스 | 무료 |
-| GitHub | 소스코드 버전 관리 | 무료 |
-
----
-
-## 4. 시스템 아키텍처
-
-```
-[Android APK]
-     ↓ HTTPS
-[Railway 서버 (Node.js + Express)]
-     ↓              ↓
-[MongoDB Atlas]  [Firebase FCM]
-                     ↓
-              [사용자 기기 알림]
-```
-
-**서버 URL**: https://equipment-rental-app-production.up.railway.app
-
----
-
-## 5. 데이터베이스 설계
-
-총 10개의 컬렉션으로 구성하였다.
-
-| 컬렉션 | 설명 |
-|--------|------|
-| users | 학생 사용자 정보 (학번, 이름, 이메일, 패널티, FCM 토큰) |
-| admins | 관리자 계정 정보 (ID, 비밀번호, FCM 토큰) |
-| categories | 기자재 카테고리 (이름, 최대 대여 기간, 아이콘 색상) |
-| equipment | 기자재 정보 (모델명, 시리얼, QR 코드, 상태) |
-| rentals | 대여/반납 이력 (사용자, 기자재, 기간, 상태) |
-| penalties | 패널티 부과/감면 이력 |
-| emailverifications | 이메일 인증번호 (TTL 5분 자동 만료) |
-| statushistories | 기자재 상태 변경 이력 |
-| damagereports | 고장/파손 신고 내역 |
-| waitlists | 예약 대기 신청 내역 |
-
----
-
-## 6. 주요 기능
-
-### 6.1 회원가입 및 로그인
-- 이메일 인증 기반 3단계 회원가입 (이메일 → 인증번호 → 정보 입력)
-- SendGrid를 통한 인증번호 이메일 발송
-- JWT 기반 학생/관리자 분리 인증
-- 패널티 누적 시 대여 자동 정지
-
-### 6.2 QR 코드 기반 대여
-- 기자재 등록 시 QR 코드 자동 생성 (Base64 Data URL)
-- 카메라로 QR 스캔 → 기자재 조회 → 대여 기간 입력 → 대여 완료
-- 대여 상태 실시간 반영
-
-### 6.3 반납 및 연장
-- 반납 시 기자재 상태 사진 촬영 필수
-- 관리자 반납 사진 확인 기능
-- 연장 신청 → 관리자 승인/거절 워크플로우
-- 연장 신청 시 관리자 FCM 알림 자동 발송
-
-### 6.4 예약 대기
-- 대여 중인 기자재에 예약 대기 신청
-- 현재 대기 인원 및 내 순번 표시
-- 반납 완료 시 대기자에게 FCM 알림 자동 발송
-- 중복 신청 방지 및 취소 기능
-- 패널티 정지 사용자 신청 불가
-
-### 6.5 관리자 대시보드
-- 실시간 대여 현황 통계 (가용/대여중/수리중/연체)
-- useFocusEffect로 탭 이동 시 자동 갱신
-- 기자재 및 카테고리 CRUD 관리
-- 강제 반납 처리 (Modal + TextInput 방식)
-- 패널티 부과 및 감면
-
-### 6.6 고장/파손 신고
-- 사용자 고장 신고 (사진 첨부)
-- 관리자 처리 현황 관리 (접수 → 수리중 → 완료)
-
-### 6.7 FCM 푸시 알림
-- 로그인 시 FCM 토큰 자동 등록
-- 패널티 부과/감면 즉시 알림
-- 연장 신청 시 관리자 알림
-- 연장 승인 시 학생 알림
-- 예약 대기 기자재 반납 시 대기자 알림
-
-### 6.8 자동화 스케줄러 (Cron)
-- **매일 자정**: 연체 자동 감지 → 패널티 자동 부과 → 대여 정지 처리
-- **매일 오전 9시**: D-3, D-1 반납 예정 알림 자동 발송
-
----
-
-## 7. 개발 과정 및 이슈 해결
-
-### 7.1 주요 이슈
-
-| 이슈 | 원인 | 해결 방법 |
-|------|------|-----------|
-| Railway SMTP 포트 차단 | 무료 플랜 465포트 차단 | Gmail → SendGrid로 전환 |
-| APK 빌드 실패 | expo-barcode-scanner 호환성 | expo-camera로 대체 |
-| Firebase FCM 초기화 실패 | 서비스 계정 키 파일 미배포 | 환경변수(FIREBASE_SERVICE_ACCOUNT)로 대체 |
-| FCM JWT Signature 오류 | 서비스 계정 키 만료 | Firebase 콘솔에서 새 키 재발급 |
-| 강제반납 미작동 | Alert.prompt iOS 전용 | Modal + TextInput 방식으로 교체 |
-| 대시보드 실시간 미반영 | useEffect 미갱신 | useFocusEffect로 교체 |
-| node_modules Git 충돌 | .gitignore 미설정 | .gitignore 재설정 후 해결 |
-
-### 7.2 기술적 성과
-- Railway 클라우드 배포로 24시간 서비스 운영 달성
-- Firebase Admin SDK + 환경변수 방식으로 보안 강화
-- EAS Build로 실제 배포 가능한 Android APK 생성 성공
-- SendGrid 무료 플랜으로 이메일 인증 서비스 구현
-
----
-
-## 8. 배포 현황
-
-| 항목 | 내용 |
-|------|------|
-| 백엔드 서버 | Railway (https://equipment-rental-app-production.up.railway.app) |
-| 데이터베이스 | MongoDB Atlas (클라우드) |
-| Android APK | EAS Build (Expo) |
-| FCM | Firebase Admin SDK |
-| 이메일 | SendGrid |
-
----
-
-## 9. 결론
-
-본 프로젝트를 통해 React Native, Node.js, MongoDB를 활용한 풀스택 모바일 앱 개발 역량을 키울 수 있었다. QR 코드 기반 대여 시스템, FCM 푸시 알림, 크론 스케줄링 등 다양한 기능을 구현하며 실제 서비스 운영까지 경험했다. 향후 사용자 피드백을 반영해 기능을 개선하고, 서비스 안정성과 사용자 경험을 지속적으로 강화할 예정이다.
-
+### 유스케이스 다이어그램 (Mermaid)
 ```mermaid
 flowchart LR
-  %% Actors
   Student([학생])
   Admin([관리자])
   FCM([FCM/메일 서비스])
   Cron([Cron 스케줄러])
 
-  %% System
   subgraph System[기자재 대여 관리 시스템]
     UC1([회원가입/로그인])
     UC2([이메일 인증])
@@ -221,7 +47,6 @@ flowchart LR
     UC16([반납 예정 알림])
   end
 
-  %% Student interactions
   Student --> UC1
   Student --> UC3
   Student --> UC4
@@ -232,7 +57,6 @@ flowchart LR
   Student --> UC9
   Student --> UC10
 
-  %% Admin interactions
   Admin --> UC10
   Admin --> UC11
   Admin --> UC12
@@ -240,7 +64,6 @@ flowchart LR
   Admin --> UC6
   Admin --> UC8
 
-  %% External services / system triggers
   UC2 <---> FCM
   UC14 <---> FCM
   Cron --> UC15
@@ -250,3 +73,169 @@ flowchart LR
   UC8 --> UC14
   UC9 --> UC14
 ```
+
+### 기능 명세서 (요약)
+| 구분 | 기능 | 입력 | 처리 | 출력 | 예외/제약 |
+|---|---|---|---|---|---|
+| 회원 | 회원가입/로그인 | 이메일/비밀번호/인증번호 | 이메일 인증, JWT 발급 | 토큰, 사용자 정보 | 패널티 누적 시 대여 제한 |
+| 대여 | QR 기반 대여 | QR 코드 | 기자재 상태 확인, 대여 등록 | 대여 완료 상태 | 대여중/수리중이면 실패 |
+| 반납 | 반납 처리 | 사진 첨부 | 상태 변경, 기록 저장 | 반납 완료 | 사진 미첨부 시 실패 |
+| 연장 | 연장 신청 | 연장 기간 | 관리자 승인/거절 | 연장 결과 알림 | 연체 상태면 실패 |
+| 예약 | 예약 대기 | 기자재 ID | 대기 리스트 등록 | 대기 순번 | 중복 신청 불가 |
+| 관리자 | CRUD | 기자재/카테고리 정보 | 등록/수정/삭제 | 변경 결과 | 관리자 전용 |
+| 알림 | FCM 발송 | 이벤트 트리거 | 토큰 조회 후 발송 | 푸시 알림 | 토큰 없으면 미발송 |
+| 자동화 | 연체 감지 | 매일 자정 | 연체 계산/패널티 부과 | 상태 갱신 | 배치 실패 시 로그 |
+
+---
+
+## 설계 (클래스 다이어그램, 순서 다이어그램, 순서도, 슈더 프로그램 등)
+
+### 1) 클래스 다이어그램 (Mermaid)
+```mermaid
+classDiagram
+  class User {
+    +String id
+    +String studentId
+    +String name
+    +String email
+    +Number penalty
+    +String fcmToken
+  }
+
+  class Admin {
+    +String id
+    +String username
+    +String passwordHash
+    +String fcmToken
+  }
+
+  class Equipment {
+    +String id
+    +String model
+    +String serial
+    +String status
+    +String qrCode
+  }
+
+  class Rental {
+    +String id
+    +Date startAt
+    +Date dueAt
+    +Date returnedAt
+    +String status
+  }
+
+  class Category {
+    +String id
+    +String name
+    +Number maxDays
+  }
+
+  class Waitlist {
+    +String id
+    +Number order
+  }
+
+  User "1" --> "0..*" Rental
+  Equipment "1" --> "0..*" Rental
+  Category "1" --> "0..*" Equipment
+  Equipment "1" --> "0..*" Waitlist
+  User "1" --> "0..*" Waitlist
+  Admin "1" --> "0..*" Equipment : manages
+```
+
+### 2) 순서 다이어그램 (대여 처리)
+```mermaid
+sequenceDiagram
+  actor Student
+  participant App as Mobile App
+  participant API as Backend API
+  participant DB as MongoDB
+  participant FCM as FCM
+
+  Student->>App: QR 스캔
+  App->>API: POST /rentals (equipmentId, 기간)
+  API->>DB: 장비 상태/대여 가능 여부 확인
+  DB-->>API: 가능
+  API->>DB: Rental 생성 및 Equipment 상태 변경
+  API->>FCM: 대여 완료 알림
+  API-->>App: 대여 완료 응답
+  App-->>Student: 결과 표시
+```
+
+### 3) 순서도 (연체 감지 배치)
+```mermaid
+flowchart TD
+  Start([Start: 매일 자정]) --> Load[대여 목록 조회]
+  Load --> Check{연체 여부?}
+  Check -- Yes --> Penalty[패널티 부과 및 대여 정지]
+  Check -- No --> Next[다음 대여로 이동]
+  Penalty --> Next
+  Next --> End([End])
+```
+
+### 4) 슈더 프로그램 (Pseudo Code)
+```text
+function overdueJob()
+  rentals = findActiveRentals()
+  for each rental in rentals
+    if today > rental.dueAt
+      addPenalty(rental.userId)
+      suspendUser(rental.userId)
+      notifyUser(rental.userId, "연체 패널티 부과")
+    end if
+  end for
+end function
+```
+
+---
+
+## 구현 (구현 환경, 개발 언어, API 등)
+
+### 구현 환경
+- 프론트엔드: React Native 0.76, Expo SDK 54
+- 백엔드: Node.js 18, Express
+- DB: MongoDB Atlas (Mongoose ODM)
+- 배포: Railway (서버), EAS Build (APK)
+- 협업: GitHub, Figma
+
+### 개발 언어
+- JavaScript (Frontend/Backend 동일)
+
+### 주요 API
+| 목적 | Method | Endpoint | 설명 |
+|---|---|---|---|
+| 로그인 | POST | /auth/login | JWT 발급 |
+| 회원가입 | POST | /auth/register | 학생 가입 |
+| 기자재 조회 | GET | /equipment | 목록 조회 |
+| QR 대여 | POST | /rentals | 대여 등록 |
+| 반납 | POST | /rentals/return | 반납 처리 |
+| 연장 | POST | /rentals/extend | 연장 신청 |
+| 예약 | POST | /waitlists | 예약 대기 등록 |
+| 관리자 CRUD | POST/PUT/DELETE | /admin/equipment | 기자재 관리 |
+
+---
+
+## 실험 (테스트 데이터와 결과)
+
+### 테스트 데이터
+- 사용자 계정: student01@test.com, admin01@test.com
+- 기자재: 노트북 3대, 카메라 2대, 삼각대 2대
+- 대여 기간: 1~7일 범위
+
+### 테스트 결과
+| 시나리오 | 기대 결과 | 실제 결과 |
+|---|---|---|
+| QR 스캔 후 대여 | 대여 성공 및 상태 변경 | 성공 |
+| 반납 사진 미첨부 | 반납 실패 | 실패(정상) |
+| 연체 감지 배치 | 패널티 부과 및 알림 | 성공 |
+| 예약 대기 등록 | 순번 부여 | 성공 |
+| 연장 신청 후 관리자 승인 | 대여 기간 연장 | 성공 |
+
+---
+
+## 결론 (작업 결과)
+
+본 프로젝트는 QR 기반 대여/반납, 예약 대기, 연체 자동화, FCM 알림을 통합한 기자재 관리 시스템을 구현하였다.
+학생/관리자 양측의 업무 흐름을 정형화하여 수기 업무를 감소시켰고, 배치 작업과 알림 연동을 통해 운영 효율을 높였다.
+향후 과제로는 iOS 배포, 부하 테스트, 접근성 개선을 제안한다。
