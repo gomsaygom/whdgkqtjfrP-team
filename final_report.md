@@ -192,5 +192,59 @@
 ## 9. 결론
 
 본 프로젝트를 통해 React Native, Node.js, MongoDB를 활용한 풀스택 모바일 앱 개발 역량을 키울 수 있었다. QR 코드 기반 대여 시스템, FCM 푸시 알림, 크론 스케줄러, 예약 대기 기능 등 실무에서 사용되는 기술을 직접 구현하고 클라우드 배포까지 완료하여 실제 서비스 가능한 수준의 앱을 개발하였다. 개발 과정에서 발생한 다양한 이슈를 팀원들과 협력하여 해결하며 실질적인 문제 해결 능력을 향상시킬 수 있었다.
+flowchart LR
+  %% Actors
+  Student([학생])
+  Admin([관리자])
+  FCM([FCM/메일 서비스])
+  Cron([Cron 스케줄러])
 
+  %% System
+  subgraph System[기자재 대여 관리 시스템]
+    UC1([회원가입/로그인])
+    UC2([이메일 인증])
+    UC3([기자재 조회])
+    UC4([QR 코드 스캔])
+    UC5([대여 신청])
+    UC6([반납 처리])
+    UC7([반납 사진 업로드])
+    UC8([연장 신청])
+    UC9([예약 대기 신청/취소])
+    UC10([대여/재고 현황 조회])
+    UC11([기자재/카테고리 CRUD])
+    UC12([패널티 부과/감면])
+    UC13([고장/파손 신고 처리])
+    UC14([푸시 알림 발송])
+    UC15([연체 자동 감지])
+    UC16([반납 예정 알림])
+  end
+
+  %% Student interactions
+  Student --> UC1
+  Student --> UC3
+  Student --> UC4
+  Student --> UC5
+  Student --> UC6
+  Student --> UC7
+  Student --> UC8
+  Student --> UC9
+  Student --> UC10
+
+  %% Admin interactions
+  Admin --> UC10
+  Admin --> UC11
+  Admin --> UC12
+  Admin --> UC13
+  Admin --> UC6
+  Admin --> UC8
+
+  %% External services / system triggers
+  UC2 <---> FCM
+  UC14 <---> FCM
+  Cron --> UC15
+  Cron --> UC16
+  UC15 --> UC12
+  UC16 --> UC14
+  UC8 --> UC14
+  UC9 --> UC14
 
