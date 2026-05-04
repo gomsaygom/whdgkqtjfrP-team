@@ -99,7 +99,7 @@ flowchart LR
   UC3 --> UC5
 ```
 
-![유스케이스 다이어그램](usecase.png)
+
 
 ---
 
@@ -179,7 +179,7 @@ sequenceDiagram
   앱-->>학생: 완료 메시지
 ```
 
-![QR 스캔 대여 시퀀스](seq_rental.png)
+
 
 #### FCM 알림 발송 흐름 (연체 자동 처리)
 
@@ -200,7 +200,7 @@ sequenceDiagram
   end
 ```
 
-![FCM 알림 시퀀스](seq_fcm.png)
+
 
 ---
 
@@ -526,7 +526,7 @@ waitlistRouter.post('/', protect, async (req, res) => {
 
 ### 6.1 작업 결과
 
-본 프로젝트를 통해 React Native, Node.js, MongoDB를 활용한 풀스택 모바일 앱 개발을 완성하였다. 총 4주에 걸쳐 설계부터 배포까지의 전 과정을 경험하였으[...]  
+본 프로젝트를 통해 React Native, Node.js, MongoDB를 활용한 모바일 앱 개발을 완성하였다. 총 4주에 걸쳐 설계부터 배포까지의 전 과정을 경험하였으[...]  
 
 - QR 코드 기반 대여/반납 시스템 완성
 - Firebase FCM 푸시 알림 실시간 발송 구현
@@ -538,9 +538,7 @@ waitlistRouter.post('/', protect, async (req, res) => {
 ### 6.2 아쉬운 점
 
 - iOS 미지원으로 플랫폼 제한이 있음
-- 실물 폰 일부에서 FCM 알림 불안정
 - UI/UX 개선 여지가 있음
-- 테스트 코드 미작성
 
 ### 6.3 배운 점
 
